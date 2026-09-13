@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "ThermPrint",
+    "slug": "thermprint-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#292929"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.melvinchia.thermprint",
+      "icon": "./assets/icon.png"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundColor": "#292929"
+      },
+      "package": "com.melvinchia.thermprint"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "./plugins/withAndroidBuildFix",
+        {
+          "gradleVersion": "8.13",
+          "agpVersion": "8.8.2",
+          "kotlinVersion": "2.1.20"
+        }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": ["central"],
+          "bluetoothAlwaysPermission": "Allow ThermPrint to connect to BLE thermal printers."
+        }
+      ],
+      "./plugins/withShareIntent"
+    ]
+  }
+}
