@@ -22,8 +22,13 @@ I created a web version of the thermal printer companion app [here](https://gith
 ## 🖥 Screenshots
 
 <div align="center">
-  <img width="49%" alt="ThermPrint Icon" src="./assets/icon.png" />
-  <img width="49%" alt="ThermPrint Splash" src="./assets/splash-icon.png" />
+  
+<img width="32%" src="https://github.com/user-attachments/assets/9105ffab-79d2-405c-a520-81174e916e49" />
+<img width="32%" src="https://github.com/user-attachments/assets/287abdf8-4aa1-4342-acc8-a15609980789" />
+<img width="32%" src="https://github.com/user-attachments/assets/bb491d69-efc5-48c9-b04c-ac50e04ddf55" />
+<img width="32%" src="https://github.com/user-attachments/assets/685cc593-95bc-4ea5-872a-2aad0a6aadbe" />
+<img width="32%" src="https://github.com/user-attachments/assets/6a56f875-42db-46fb-ad84-7f321f0b65c0" />
+<img width="32%" src="https://github.com/user-attachments/assets/17f4cad5-7b10-42a0-9fba-055836bce2e9" />
 </div>
 
 ## 🔬 Technologies Used
@@ -71,3 +76,4 @@ Inspired by my obsession with bloat-free, nonsense-free, and ads-free apps, and 
 
 Copyright © 2026 Melvin Chia<br/>
 Licensed under the [MIT License](LICENSE).
+
