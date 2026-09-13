@@ -60,6 +60,21 @@ describe("Spine Tag Generator", () => {
     expect(data.svgXml).toContain(">2<");
   });
 
+  it("should generate Data Matrix payload with ISO date strings and preserve display format", () => {
+    const data = generateSpineTagData({
+      volume: "5",
+      startDate: "2026-12-25",
+      endDate: "2026-12-31",
+      code: "XMASCODE12345678",
+    });
+
+    expect(data.payload).toBe("5,2026-12-25,2026-12-31,XMASCODE12345678");
+    expect(data.formattedStart).toBe("25/12/2026");
+    expect(data.formattedEnd).toBe("31/12/2026");
+    expect(data.svgXml).toContain("25/12/2026");
+    expect(data.svgXml).toContain("31/12/2026");
+  });
+
   it("should provide spineTagService singleton with default settings", () => {
     expect(DEFAULT_SPINE_TAG_SETTINGS.quality).toBe(51);
     expect(DEFAULT_SPINE_TAG_SETTINGS.speed).toBe(20);

@@ -8,8 +8,8 @@ import { grayToNibbles } from "../core/imageProcessor";
 
 export interface SpineTagOptions {
   volume: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
+  startDate: string; // ISO date string (YYYY-MM-DD)
+  endDate: string; // ISO date string (YYYY-MM-DD)
   code?: string;
 }
 
@@ -55,21 +55,13 @@ export function generateSpineTagData(
       ? options.code.trim().toUpperCase()
       : generateRandomCode();
 
-  const startDateIso = dayjs(options.startDate).isValid()
-    ? dayjs(options.startDate).format("YYYY-MM-DD")
-    : options.startDate;
-  const endDateIso = dayjs(options.endDate).isValid()
-    ? dayjs(options.endDate).format("YYYY-MM-DD")
-    : options.endDate;
+  const startDateIso = dayjs(options.startDate).format("YYYY-MM-DD");
+  const endDateIso = dayjs(options.endDate).format("YYYY-MM-DD");
 
   const payload = `${options.volume},${startDateIso},${endDateIso},${code}`;
 
-  const formattedStart = dayjs(startDateIso).isValid()
-    ? dayjs(startDateIso).format("DD/MM/YYYY")
-    : startDateIso;
-  const formattedEnd = dayjs(endDateIso).isValid()
-    ? dayjs(endDateIso).format("DD/MM/YYYY")
-    : endDateIso;
+  const formattedStart = dayjs(startDateIso).format("DD/MM/YYYY");
+  const formattedEnd = dayjs(endDateIso).format("DD/MM/YYYY");
 
   // Generate Data Matrix barcode
   const rawDmtx = bwipjs.raw({
