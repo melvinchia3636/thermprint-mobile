@@ -16,6 +16,8 @@ export function PreviewCard({
     previewUri?: string;
     width: number;
     height: number;
+    previewWidth?: number;
+    previewHeight?: number;
   } | null;
   canvasRef?: RefObject<View | null>;
   noticeText?: string;
@@ -63,7 +65,9 @@ export function PreviewCard({
             collapsable={false}
             style={{
               width: "100%",
-              aspectRatio: data.width / data.height,
+              aspectRatio:
+                (data.previewWidth ?? data.width) /
+                (data.previewHeight ?? data.height),
               backgroundColor: "#FFFFFF",
               borderRadius: 4,
               overflow: "hidden",

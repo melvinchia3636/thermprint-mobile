@@ -37,6 +37,8 @@ export interface ProcessedImageData {
   nibbleData: Uint8Array;
   width: number;
   height: number;
+  previewWidth: number;
+  previewHeight: number;
   origWidth: number;
   origHeight: number;
   totalStrips: number;
@@ -234,7 +236,7 @@ export function buildPrintStrip(
   for (let idx = 0; idx < total - 1; idx++) {
     const sepY = (idx + 1) * cellH;
     if (sepY >= canvasH) continue;
-    for (let line = 0; line < 2; line++) {
+    for (let line = 0; line < 1; line++) {
       const lineY = sepY - line;
       if (lineY < 0 || lineY >= canvasH) continue;
       for (let x = 0; x < printerWidth; x++) {
@@ -425,6 +427,8 @@ export async function processImageUri(
     nibbleData: finalNibbles,
     width: printWidth,
     height: printHeight,
+    previewWidth: width,
+    previewHeight: height,
     origWidth: decoded.width,
     origHeight: decoded.height,
     totalStrips: cols * rows,
