@@ -25,13 +25,13 @@ export interface YouTubePrintData {
   url: string;
   title: string;
   authorName?: string;
+  duration?: string;
   thumbnailUrl: string;
   previewUri: string;
   svgXml: string;
   width: number;
   height: number;
   nibbleData: Uint8Array;
-  grayPixels: Uint8Array;
 }
 
 export interface YouTubeMetadata {
@@ -39,7 +39,57 @@ export interface YouTubeMetadata {
   url: string;
   title: string;
   authorName?: string;
+  duration?: string;
+  durationSeconds?: number;
   thumbnailUrl: string;
+}
+
+const INFO_PADDING = 10;
+const INFO_SIDE_PADDING = 6;
+const QR_SIZE = 76;
+const TITLE_FONT_SIZE = 16;
+const TITLE_LINE_HEIGHT = 20;
+const AUTHOR_FONT_SIZE = 13;
+const AUTHOR_LINE_HEIGHT = 18;
+const MAX_TITLE_LINES = 3;
+const DURATION_FONT_SIZE = 15;
+const DURATION_BADGE_PADDING = 6;
+const DURATION_BADGE_HEIGHT = DURATION_FONT_SIZE + 2 * DURATION_BADGE_PADDING;
+const DURATION_BADGE_MARGIN = 8;
+const FONT_BOLD = "DMSans_700Bold, DM Sans, sans-serif";
+const FONT_REGULAR = "DMSans_400Regular, DM Sans, sans-serif";
+const AVG_CHAR_WIDTH_RATIO = 0.55;
+
+export function formatYouTubeDuration(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const hrs = Math.floor(total / 3600);
+  const mins = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return hrs > 0
+    ? `${hrs}:${pad(mins)}:${pad(secs)}`
+    : `${mins}:${pad(secs)}`;
+}
+
+export async function fetchYouTubeDuration(
+  videoId: string,
+): Promise<number | undefined> {
+  try {
+    const watchUrl = "https://www.youtube.com/watch?v=" + videoId;
+    const res = await fetch(watchUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (!res.ok) return undefined;
+    const html = await res.text();
+    const match = html.match(/"lengthSeconds":"(\d+)"/);
+    if (match && match[1]) {
+      const seconds = parseInt(match[1], 10);
+      if (Number.isFinite(seconds) && seconds > 0) return seconds;
+    }
+  } catch {
+    // Duration is optional; ignore failures
+  }
+  return undefined;
 }
 
 export function extractYouTubeVideoId(url: string): string {
@@ -85,6 +135,8 @@ export async function fetchYouTubeMetadata(
     // Fallback if oembed fails
   }
 
+  const durationSeconds = await fetchYouTubeDuration(videoId);
+
   const thumbnailUrl =
     "https://img.youtube.com/vi/" + videoId + "/hqdefault.jpg";
   return {
@@ -92,6 +144,11 @@ export async function fetchYouTubeMetadata(
     url: canonicalUrl,
     title,
     authorName,
+    duration:
+      durationSeconds !== undefined
+        ? formatYouTubeDuration(durationSeconds)
+        : undefined,
+    durationSeconds,
     thumbnailUrl,
   };
 }
@@ -122,50 +179,173 @@ export async function fetchThumbnailBytes(
   throw new Error("Failed to download YouTube thumbnail image.");
 }
 
-export function overlayQrCode(
-  grayBuffer: Uint8Array,
-  bufW: number,
-  bufH: number,
-  url: string,
-  qrSize = 76,
-): void {
+export function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+export function wrapYouTubeTitle(
+  title: string,
+  maxWidth: number,
+  fontSize: number = TITLE_FONT_SIZE,
+): string[] {
+  const maxChars = Math.max(
+    1,
+    Math.floor(maxWidth / (fontSize * AVG_CHAR_WIDTH_RATIO)),
+  );
+  const words = title.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+
+  const pushWord = (word: string) => {
+    let remaining = word;
+    while (remaining.length > maxChars) {
+      lines.push(remaining.slice(0, maxChars));
+      remaining = remaining.slice(maxChars);
+    }
+    return remaining;
+  };
+
+  if (words.length === 0) return ["YouTube Video"];
+
+  for (const word of words) {
+    if (current.length === 0) {
+      current = pushWord(word);
+    } else if (current.length + 1 + word.length <= maxChars) {
+      current += " " + word;
+    } else {
+      lines.push(current);
+      current = pushWord(word);
+    }
+  }
+
+  if (current.length > 0) lines.push(current);
+  return lines;
+}
+
+export function truncateLines(lines: string[], maxLines: number): string[] {
+  if (lines.length <= maxLines) return lines;
+  const truncated = lines.slice(0, maxLines);
+  const last = truncated[maxLines - 1];
+  const ellipsis = "..";
+  truncated[maxLines - 1] =
+    last.length > ellipsis.length
+      ? last.slice(0, last.length - ellipsis.length) + ellipsis
+      : ellipsis;
+  return truncated;
+}
+
+export interface YouTubeSvgOptions {
+  width: number;
+  thumbnailHeight: number;
+  thumbnailDataUri: string;
+  title: string;
+  authorName?: string;
+  duration?: string;
+  url: string;
+  qrSize?: number;
+}
+
+export interface YouTubeSvgResult {
+  svgXml: string;
+  width: number;
+  height: number;
+}
+
+export function generateYouTubeSvg(
+  options: YouTubeSvgOptions,
+): YouTubeSvgResult {
+  const {
+    width,
+    thumbnailHeight,
+    thumbnailDataUri,
+    title,
+    authorName,
+    duration,
+    url,
+    qrSize = QR_SIZE,
+  } = options;
+
+  const qrX = width - qrSize - INFO_SIDE_PADDING;
+  const textX = INFO_SIDE_PADDING;
+  const textMaxWidth = qrX - textX;
+
+  const titleLines = truncateLines(
+    wrapYouTubeTitle(title, textMaxWidth),
+    MAX_TITLE_LINES,
+  );
+  const titleBlockHeight = titleLines.length * TITLE_LINE_HEIGHT;
+  const textBlockHeight =
+    titleBlockHeight + (authorName ? AUTHOR_LINE_HEIGHT : 0);
+  const contentHeight = Math.max(qrSize, textBlockHeight);
+  const bandHeight = contentHeight + INFO_PADDING * 2;
+  const height = thumbnailHeight + bandHeight;
+
+  const contentTop =
+    thumbnailHeight +
+    INFO_PADDING +
+    Math.floor((contentHeight - textBlockHeight) / 2);
+
   const qr = qrcode(0, "M");
   qr.addData(url);
   qr.make();
   const modCount = qr.getModuleCount();
-  const padding = 4;
-  const innerSize = qrSize - 2 * padding;
-  const modSize = innerSize / modCount;
+  const qrPadding = 4;
+  const modSize = (qrSize - 2 * qrPadding) / modCount;
+  const qrY =
+    thumbnailHeight +
+    INFO_PADDING +
+    Math.floor((contentHeight - qrSize) / 2);
 
-  const startX = bufW - qrSize - 4;
-  const startY = bufH - qrSize - 4;
-
-  for (let y = startY; y < startY + qrSize; y++) {
-    for (let x = startX; x < startX + qrSize; x++) {
-      if (x >= 0 && x < bufW && y >= 0 && y < bufH) {
-        grayBuffer[y * bufW + x] = 255;
-      }
-    }
-  }
-
+  let qrRects = "";
   for (let r = 0; r < modCount; r++) {
     for (let c = 0; c < modCount; c++) {
-      if (qr.isDark(r, c)) {
-        const mx = Math.round(startX + padding + c * modSize);
-        const my = Math.round(startY + padding + r * modSize);
-        const mx2 = Math.round(startX + padding + (c + 1) * modSize);
-        const my2 = Math.round(startY + padding + (r + 1) * modSize);
-
-        for (let py = my; py < my2; py++) {
-          for (let px = mx; px < mx2; px++) {
-            if (px >= 0 && px < bufW && py >= 0 && py < bufH) {
-              grayBuffer[py * bufW + px] = 0;
-            }
-          }
-        }
-      }
+      if (!qr.isDark(r, c)) continue;
+      const x = (qrX + qrPadding + c * modSize).toFixed(2);
+      const y = (qrY + qrPadding + r * modSize).toFixed(2);
+      qrRects += `<rect x="${x}" y="${y}" width="${modSize.toFixed(2)}" height="${modSize.toFixed(2)}" fill="#000000" />\n`;
     }
   }
+
+  const titleSvg = titleLines
+    .map((line, i) => {
+      const y = contentTop + TITLE_FONT_SIZE + i * TITLE_LINE_HEIGHT;
+      return `<text x="${textX}" y="${y}" font-family="${FONT_BOLD}" font-size="${TITLE_FONT_SIZE}" font-weight="bold" fill="#000000">${escapeXml(line)}</text>`;
+    })
+    .join("\n  ");
+
+  const authorSvg = authorName
+    ? `<text x="${textX}" y="${contentTop + titleBlockHeight + AUTHOR_FONT_SIZE}" font-family="${FONT_REGULAR}" font-size="${AUTHOR_FONT_SIZE}" fill="#000000">${escapeXml(authorName)}</text>`
+    : "";
+
+  let durationSvg = "";
+  if (duration) {
+    const textWidth =
+      duration.length * DURATION_FONT_SIZE * AVG_CHAR_WIDTH_RATIO;
+    const badgeWidth = Math.ceil(textWidth + 2 * DURATION_BADGE_PADDING);
+    const badgeX = width - DURATION_BADGE_MARGIN - badgeWidth;
+    const badgeY = thumbnailHeight - DURATION_BADGE_MARGIN - DURATION_BADGE_HEIGHT;
+    const textBaseline =
+      badgeY + DURATION_BADGE_HEIGHT / 2 + DURATION_FONT_SIZE * 0.35;
+    durationSvg = `<rect x="${badgeX}" y="${badgeY}" width="${badgeWidth}" height="${DURATION_BADGE_HEIGHT}" rx="4" fill="#000000" />
+  <text x="${badgeX + DURATION_BADGE_PADDING}" y="${textBaseline}" font-family="${FONT_BOLD}" font-size="${DURATION_FONT_SIZE}" font-weight="bold" fill="#FFFFFF">${escapeXml(duration)}</text>`;
+  }
+
+  const svgXml = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="${width}" height="${height}" fill="#FFFFFF" />
+  <image href="${thumbnailDataUri}" x="0" y="0" width="${width}" height="${thumbnailHeight}" preserveAspectRatio="none" />
+  ${durationSvg}
+  <line x1="0" y1="${thumbnailHeight}" x2="${width}" y2="${thumbnailHeight}" stroke="#000000" stroke-width="2" />
+  ${titleSvg}
+  ${authorSvg}
+  ${qrRects}
+</svg>`;
+
+  return { svgXml, width, height };
 }
 
 export async function generateYouTubePrintData(
@@ -178,43 +358,53 @@ export async function generateYouTubePrintData(
   );
 
   const decoded = jpeg.decode(bytes, { useTArray: true });
-  const targetHeight = Math.round(
+  const thumbnailHeight = Math.round(
     decoded.height * (printerWidth / decoded.width),
   );
 
-  const grayPixels = resizeAndGrayscale(
+  const thumbnailGray = resizeAndGrayscale(
     decoded.data,
     decoded.width,
     decoded.height,
     printerWidth,
-    targetHeight,
+    thumbnailHeight,
   );
-
-  overlayQrCode(grayPixels, printerWidth, targetHeight, meta.url, 76);
-
-  const dithered = ditherGrayPixels(grayPixels, printerWidth, targetHeight);
-  const nibbleData = grayToNibbles(dithered, printerWidth, targetHeight);
-  const previewUri = grayPixelsToJpegBase64(
-    dithered,
+  const thumbnailDithered = ditherGrayPixels(
+    thumbnailGray,
     printerWidth,
-    targetHeight,
+    thumbnailHeight,
   );
-  const svgXml = `<svg width="${printerWidth}" height="${targetHeight}" viewBox="0 0 ${printerWidth} ${targetHeight}" xmlns="http://www.w3.org/2000/svg">
-  <image href="${previewUri}" width="${printerWidth}" height="${targetHeight}" />
-</svg>`;
+  const thumbnailDataUri = grayPixelsToJpegBase64(
+    thumbnailDithered,
+    printerWidth,
+    thumbnailHeight,
+  );
+  const { svgXml, height } = generateYouTubeSvg({
+    width: printerWidth,
+    thumbnailHeight,
+    thumbnailDataUri,
+    title: meta.title,
+    authorName: meta.authorName,
+    duration: meta.duration,
+    url: meta.url,
+  });
+
+  const blank = new Uint8Array(printerWidth * height);
+  blank.fill(255);
+  const nibbleData = grayToNibbles(blank, printerWidth, height);
 
   return {
     videoId: meta.videoId,
     url: meta.url,
     title: meta.title,
     authorName: meta.authorName,
+    duration: meta.duration,
     thumbnailUrl: resolvedThumbUrl,
-    previewUri,
+    previewUri: thumbnailDataUri,
     svgXml,
     width: printerWidth,
-    height: targetHeight,
+    height,
     nibbleData,
-    grayPixels,
   };
 }
 
@@ -237,24 +427,8 @@ export class YouTubeService {
     return fetchThumbnailBytes(videoId);
   }
 
-  resizeAndGrayscale(
-    rgbaData: Uint8Array,
-    srcW: number,
-    srcH: number,
-    dstW: number,
-    dstH: number,
-  ): Uint8Array {
-    return resizeAndGrayscale(rgbaData, srcW, srcH, dstW, dstH);
-  }
-
-  overlayQrCode(
-    grayBuffer: Uint8Array,
-    bufW: number,
-    bufH: number,
-    url: string,
-    qrSize: number = this.defaultQrSize,
-  ): void {
-    overlayQrCode(grayBuffer, bufW, bufH, url, qrSize);
+  generateSvg(options: YouTubeSvgOptions): YouTubeSvgResult {
+    return generateYouTubeSvg(options);
   }
 
   async generatePrintData(
@@ -266,14 +440,29 @@ export class YouTubeService {
 
   async print(
     url: string,
+    viewRef?: import("../core/viewRasterizer").ViewCaptureTarget,
     settings: Partial<PrintSettingsOptions> = {},
   ): Promise<YouTubePrintData> {
     const printData = await this.generatePrintData(
       url,
       this.defaultPrinterWidth,
     );
+
+    let nibbles = printData.nibbleData;
+    let printWidth = printData.width;
+
+    if (viewRef) {
+      const { rasterizeViewToNibbles } = await import("../core/viewRasterizer");
+      const rasterized = await rasterizeViewToNibbles(
+        viewRef,
+        this.defaultPrinterWidth,
+      );
+      nibbles = rasterized.nibbleData;
+      printWidth = rasterized.width;
+    }
+
     const mergedSettings = { ...this.defaultSettings, ...settings };
-    await sendPrintJob(printData.nibbleData, printData.width, mergedSettings);
+    await sendPrintJob(nibbles, printWidth, mergedSettings);
     return printData;
   }
 }

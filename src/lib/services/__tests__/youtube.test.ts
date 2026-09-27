@@ -1,7 +1,11 @@
 import { describe, it, expect } from "bun:test";
 import {
+  escapeXml,
   extractYouTubeVideoId,
-  overlayQrCode,
+  formatYouTubeDuration,
+  generateYouTubeSvg,
+  truncateLines,
+  wrapYouTubeTitle,
   youtubeService,
 } from "../youtubeService";
 
@@ -34,43 +38,69 @@ describe("YouTube Video ID Parser", () => {
   });
 });
 
-describe("YouTube Image Processing & QR Overlay", () => {
-  it("should resize and grayscale RGBA buffers accurately", () => {
-    const srcW = 2;
-    const srcH = 2;
-    const rgba = new Uint8Array([
-      255, 255, 255, 255, // white
-      0, 0, 0, 255,       // black
-      255, 0, 0, 255,     // red
-      0, 255, 0, 255,     // green
-    ]);
-
-    const dstW = 4;
-    const dstH = 4;
-    const gray = youtubeService.resizeAndGrayscale(rgba, srcW, srcH, dstW, dstH);
-    expect(gray.length).toBe(16);
-    expect(gray[0]).toBe(255); // Top-left is white
+describe("YouTube Formatting & SVG Composition", () => {
+  it("should format durations as minutes or hours", () => {
+    expect(formatYouTubeDuration(0)).toBe("0:00");
+    expect(formatYouTubeDuration(59)).toBe("0:59");
+    expect(formatYouTubeDuration(185)).toBe("3:05");
+    expect(formatYouTubeDuration(3725)).toBe("1:02:05");
   });
 
-  it("should stamp QR code onto grayscale buffer", () => {
-    const bufW = 384;
-    const bufH = 216;
-    const gray = new Uint8Array(bufW * bufH);
-    gray.fill(128); // medium gray background
-
-    overlayQrCode(gray, bufW, bufH, "https://youtu.be/dQw4w9WgXcQ", 76);
-
-    // QR area in bottom-right corner should have white margin (255) and black modules (0)
-    let hasBlack = false;
-    let hasWhite = false;
-    for (let y = bufH - 76; y < bufH; y++) {
-      for (let x = bufW - 76; x < bufW; x++) {
-        if (gray[y * bufW + x] === 0) hasBlack = true;
-        if (gray[y * bufW + x] === 255) hasWhite = true;
-      }
+  it("should wrap titles to the available width", () => {
+    const lines = wrapYouTubeTitle(
+      "A Very Long YouTube Video Title That Should Wrap Across Lines",
+      278,
+      16,
+    );
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines) {
+      expect(line.length).toBeLessThanOrEqual(31);
     }
-    expect(hasBlack).toBe(true);
-    expect(hasWhite).toBe(true);
+  });
+
+  it("should truncate excess title lines with an ellipsis", () => {
+    const lines = truncateLines(["one", "two", "three", "four"], 3);
+    expect(lines).toHaveLength(3);
+    expect(lines[2].endsWith("..")).toBe(true);
+  });
+
+  it("should escape XML special characters", () => {
+    expect(escapeXml('Tom & Jerry <"test">')).toBe(
+      "Tom &amp; Jerry &lt;&quot;test&quot;&gt;",
+    );
+  });
+
+  it("should build an SVG with a duration badge, title and author", () => {
+    const thumbnailHeight = 216;
+    const { svgXml, width, height } = generateYouTubeSvg({
+      width: 384,
+      thumbnailHeight,
+      thumbnailDataUri: "data:image/jpeg;base64,AAAA",
+      title: "A Very Long YouTube Video Title That Should Wrap Across Lines",
+      authorName: "Some Channel",
+      duration: "1:23",
+      url: "https://youtu.be/dQw4w9WgXcQ",
+    });
+
+    expect(width).toBe(384);
+    expect(height).toBeGreaterThan(thumbnailHeight);
+    expect(svgXml).toContain('<image href="data:image/jpeg;base64,AAAA"');
+    expect(svgXml).toContain("A Very Long YouTube");
+    expect(svgXml).toContain("Some Channel");
+
+    // Duration badge sits on the thumbnail with white text
+    expect(svgXml).toMatch(/rx="4" fill="#000000"/);
+    expect(svgXml).toMatch(/fill="#FFFFFF">1:23</);
+
+    // QR modules start on the right-hand side of the info band, below the thumbnail
+    const qrLeft = 384 - 76 - 6;
+    const rects = svgXml.match(/<rect x="([\d.]+)" y="([\d.]+)"[^/]*fill="#000000" \/>/g) ?? [];
+    const qrRects = rects.filter((r) => {
+      const x = parseFloat(r.match(/x="([\d.]+)"/)![1]);
+      const y = parseFloat(r.match(/y="([\d.]+)"/)![1]);
+      return x >= qrLeft && y >= thumbnailHeight;
+    });
+    expect(qrRects.length).toBeGreaterThan(0);
   });
 
   it("should provide youtubeService singleton instance with service methods", () => {

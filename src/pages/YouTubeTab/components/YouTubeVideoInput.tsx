@@ -57,12 +57,14 @@ export function YouTubeVideoInput({
           >
             {metadata.title}
           </Text>
-          {metadata.authorName && (
+          {(metadata.authorName || metadata.duration) && (
             <Text
               variant="bodyMedium"
               className="text-zinc-400 mt-1"
             >
-              {metadata.authorName}
+              {[metadata.authorName, metadata.duration]
+                .filter(Boolean)
+                .join("  •  ")}
             </Text>
           )}
         </View>

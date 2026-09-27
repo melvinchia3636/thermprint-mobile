@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ScrollView } from "react-native";
+import { useRef, useState } from "react";
+import { ScrollView, View } from "react-native";
 import {
   youtubeService,
   useTabHardwareSettings,
@@ -17,6 +17,7 @@ import { usePrintAction } from "@/hooks";
 import { PreviewCard } from "@/components/PreviewCard";
 
 function YouTubeTabContent() {
+  const previewRef = useRef<View>(null);
   const { inputUrl } = useYouTubeConfig();
   const [metadata, setMetadata] = useState<YouTubeMetadata | null>(null);
   const {
@@ -32,7 +33,7 @@ function YouTubeTabContent() {
 
   async function handlePrint() {
     await executePrint(() =>
-      youtubeService.print(inputUrl, printerSettings),
+      youtubeService.print(inputUrl, previewRef.current, printerSettings),
     );
   }
 
@@ -77,10 +78,11 @@ function YouTubeTabContent() {
         isLoading={isLoadingPreview}
         noticeText={
           cachedPrintData
-            ? "Thermal print preview with 16-level Floyd-Steinberg dithering and embedded QR code."
+            ? "Thermal print preview with 16-level Floyd-Steinberg dithering, video title, duration and embedded QR code."
             : undefined
         }
         data={cachedPrintData}
+        canvasRef={previewRef}
       />
       <PrintingProgressBar />
       <PrintButton
