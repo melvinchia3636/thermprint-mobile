@@ -56,7 +56,7 @@ describe("ShareIntentService", () => {
 
   it("should handle event emission and unsubscribe", () => {
     const service = new ShareIntentService();
-    let receivedUri: string | null = null;
+    let receivedUri = "" as string | null;
     const unsubscribe = service.subscribeSharedImage((uri) => {
       receivedUri = uri;
     });

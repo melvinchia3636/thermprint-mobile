@@ -1,4 +1,5 @@
 import { GRAY_LEVELS } from "./protocol";
+import { uint8ArrayToBase64 } from "./base64";
 
 export type DitherMethod = "floyd-steinberg" | "atkinson" | "bayer" | "none";
 
@@ -8,6 +9,149 @@ const BAYER_4X4 = [
   [3, 11, 1, 9],
   [15, 7, 13, 5],
 ];
+
+const THERMAL_PREVIEW_LUT = new Uint8Array(256);
+const stepInLut = Math.floor(256 / GRAY_LEVELS);
+const thermalGamma = 1.6;
+for (let i = 0; i < 256; i++) {
+  let levelIdx = Math.floor(i / stepInLut);
+  if (levelIdx < 0) levelIdx = 0;
+  else if (levelIdx >= GRAY_LEVELS) levelIdx = GRAY_LEVELS - 1;
+  const nibble = GRAY_LEVELS - 1 - levelIdx;
+  const linearGray = 255 - Math.floor((nibble * 255) / (GRAY_LEVELS - 1));
+  THERMAL_PREVIEW_LUT[i] = Math.floor(
+    255 * Math.pow(linearGray / 255.0, thermalGamma),
+  );
+}
+
+export function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
+export function grayPixelsToBmpBase64(
+  pixels: Uint8Array | Int32Array | number[],
+  width: number,
+  height: number,
+): string {
+  const rowSize = Math.floor((24 * width + 31) / 32) * 4;
+  const pixelArraySize = rowSize * height;
+  const fileSize = 54 + pixelArraySize;
+  const buffer = new Uint8Array(fileSize);
+
+  buffer[0] = 0x42;
+  buffer[1] = 0x4d;
+  buffer[2] = fileSize & 0xff;
+  buffer[3] = (fileSize >> 8) & 0xff;
+  buffer[4] = (fileSize >> 16) & 0xff;
+  buffer[5] = (fileSize >> 24) & 0xff;
+  buffer[10] = 54;
+
+  buffer[14] = 40;
+  buffer[18] = width & 0xff;
+  buffer[19] = (width >> 8) & 0xff;
+  buffer[20] = (width >> 16) & 0xff;
+  buffer[21] = (width >> 24) & 0xff;
+  buffer[22] = height & 0xff;
+  buffer[23] = (height >> 8) & 0xff;
+  buffer[24] = (height >> 16) & 0xff;
+  buffer[25] = (height >> 24) & 0xff;
+  buffer[26] = 1;
+  buffer[28] = 24;
+  buffer[34] = pixelArraySize & 0xff;
+  buffer[35] = (pixelArraySize >> 8) & 0xff;
+  buffer[36] = (pixelArraySize >> 16) & 0xff;
+  buffer[37] = (pixelArraySize >> 24) & 0xff;
+
+  const padding = rowSize - width * 3;
+  let outIdx = 54;
+
+  for (let y = height - 1; y >= 0; y--) {
+    const rowStart = y * width;
+    for (let x = 0; x < width; x++) {
+      const val = THERMAL_PREVIEW_LUT[pixels[rowStart + x]];
+      buffer[outIdx++] = val;
+      buffer[outIdx++] = val;
+      buffer[outIdx++] = val;
+    }
+    for (let p = 0; p < padding; p++) {
+      buffer[outIdx++] = 0;
+    }
+  }
+
+  return `data:image/bmp;base64,${uint8ArrayToBase64(buffer)}`;
+}
+
+export function drawAnnotatedPreviewBmp(
+  ditheredPixels: Uint8Array | Int32Array | number[],
+  width: number,
+  height: number,
+  cols: number,
+  rows: number,
+): string {
+  const rowSize = Math.floor((24 * width + 31) / 32) * 4;
+  const pixelArraySize = rowSize * height;
+  const fileSize = 54 + pixelArraySize;
+  const buffer = new Uint8Array(fileSize);
+
+  buffer[0] = 0x42;
+  buffer[1] = 0x4d;
+  buffer[2] = fileSize & 0xff;
+  buffer[3] = (fileSize >> 8) & 0xff;
+  buffer[4] = (fileSize >> 16) & 0xff;
+  buffer[5] = (fileSize >> 24) & 0xff;
+  buffer[10] = 54;
+
+  buffer[14] = 40;
+  buffer[18] = width & 0xff;
+  buffer[19] = (width >> 8) & 0xff;
+  buffer[20] = (width >> 16) & 0xff;
+  buffer[21] = (width >> 24) & 0xff;
+  buffer[22] = height & 0xff;
+  buffer[23] = (height >> 8) & 0xff;
+  buffer[24] = (height >> 16) & 0xff;
+  buffer[25] = (height >> 24) & 0xff;
+  buffer[26] = 1;
+  buffer[28] = 24;
+  buffer[34] = pixelArraySize & 0xff;
+  buffer[35] = (pixelArraySize >> 8) & 0xff;
+  buffer[36] = (pixelArraySize >> 16) & 0xff;
+  buffer[37] = (pixelArraySize >> 24) & 0xff;
+
+  const cellW = Math.floor(width / cols);
+  const cellH = Math.floor(height / rows);
+  const padding = rowSize - width * 3;
+  let outIdx = 54;
+
+  for (let y = height - 1; y >= 0; y--) {
+    const isHorizLine = rows > 1 && y % cellH === 0 && y > 0 && y < height;
+    const rowStart = y * width;
+
+    for (let x = 0; x < width; x++) {
+      const isVertLine = cols > 1 && x % cellW === 0 && x > 0 && x < width;
+
+      if (
+        (isVertLine && Math.floor(y / 6) % 2 === 0) ||
+        (isHorizLine && Math.floor(x / 6) % 2 === 0)
+      ) {
+        buffer[outIdx++] = 68;
+        buffer[outIdx++] = 68;
+        buffer[outIdx++] = 239;
+      } else {
+        const val = THERMAL_PREVIEW_LUT[ditheredPixels[rowStart + x]];
+        buffer[outIdx++] = val;
+        buffer[outIdx++] = val;
+        buffer[outIdx++] = val;
+      }
+    }
+    for (let p = 0; p < padding; p++) {
+      buffer[outIdx++] = 0;
+    }
+  }
+
+  return `data:image/bmp;base64,${uint8ArrayToBase64(buffer)}`;
+}
 
 export function ditherFloydSteinberg(
   grayPixels: Uint8Array | number[],

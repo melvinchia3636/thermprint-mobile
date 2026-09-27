@@ -1,9 +1,11 @@
 import type { Action } from "expo-image-manipulator";
 import jpeg from "jpeg-js";
-import { base64ToUint8Array, uint8ArrayToBase64 } from "../core/base64";
+import { base64ToUint8Array } from "../core/base64";
 import {
   applyUnsharpMask,
   ditherGrayPixels,
+  drawAnnotatedPreviewBmp,
+  grayPixelsToBmpBase64,
   grayToNibbles,
   resizeAndGrayscale,
   type DitherMethod,
@@ -34,7 +36,7 @@ export interface ImageOptions {
 
 export interface ProcessedImageData {
   previewUri: string;
-  nibbleData: Uint8Array;
+  nibbleData?: Uint8Array;
   width: number;
   height: number;
   previewWidth: number;
@@ -42,6 +44,8 @@ export interface ProcessedImageData {
   origWidth: number;
   origHeight: number;
   totalStrips: number;
+  uri?: string;
+  options?: ImageOptions;
 }
 
 export const DEFAULT_IMAGE_SETTINGS: PrintSettingsOptions = {
@@ -255,6 +259,21 @@ export function buildPrintStrip(
   };
 }
 
+interface DecodedImageCache {
+  key: string;
+  width: number;
+  height: number;
+  origWidth: number;
+  origHeight: number;
+  rawGray: Uint8Array;
+}
+
+let lastDecodedCache: DecodedImageCache | null = null;
+
+export function clearImageCache(): void {
+  lastDecodedCache = null;
+}
+
 export function drawAnnotatedPreview(
   ditheredPixels: Uint8Array | Int32Array | number[],
   width: number,
@@ -262,61 +281,7 @@ export function drawAnnotatedPreview(
   cols: number,
   rows: number,
 ): string {
-  const stepIn = Math.floor(256 / GRAY_LEVELS);
-  const thermalGamma = 1.6;
-  const rgba = new Uint8Array(width * height * 4);
-
-  for (let i = 0; i < width * height; i++) {
-    const rawVal = ditheredPixels[i];
-    let levelIdx = Math.floor(rawVal / stepIn);
-    if (levelIdx < 0) levelIdx = 0;
-    else if (levelIdx >= GRAY_LEVELS) levelIdx = GRAY_LEVELS - 1;
-
-    const nibble = GRAY_LEVELS - 1 - levelIdx;
-    const linearGray = 255 - Math.floor((nibble * 255) / (GRAY_LEVELS - 1));
-    const grayOut = Math.floor(
-      255 * Math.pow(linearGray / 255.0, thermalGamma),
-    );
-
-    const idx = i * 4;
-    rgba[idx] = grayOut;
-    rgba[idx + 1] = grayOut;
-    rgba[idx + 2] = grayOut;
-    rgba[idx + 3] = 255;
-  }
-
-  const cellW = Math.floor(width / cols);
-  const cellH = Math.floor(height / rows);
-
-  // Vertical split lines (red dashed)
-  for (let c = 1; c < cols; c++) {
-    const x = c * cellW;
-    for (let y = 0; y < height; y++) {
-      if (Math.floor(y / 6) % 2 === 0) {
-        const idx = (y * width + x) * 4;
-        rgba[idx] = 239; // Red R
-        rgba[idx + 1] = 68; // Red G
-        rgba[idx + 2] = 68; // Red B
-      }
-    }
-  }
-
-  // Horizontal split lines (red dashed)
-  for (let r = 1; r < rows; r++) {
-    const y = r * cellH;
-    for (let x = 0; x < width; x++) {
-      if (Math.floor(x / 6) % 2 === 0) {
-        const idx = (y * width + x) * 4;
-        rgba[idx] = 239;
-        rgba[idx + 1] = 68;
-        rgba[idx + 2] = 68;
-      }
-    }
-  }
-
-  const encoded = jpeg.encode({ data: rgba, width, height }, 85);
-  const base64 = uint8ArrayToBase64(encoded.data);
-  return `data:image/jpeg;base64,${base64}`;
+  return drawAnnotatedPreviewBmp(ditheredPixels, width, height, cols, rows);
 }
 
 export function grayPixelsToJpegBase64(
@@ -324,47 +289,23 @@ export function grayPixelsToJpegBase64(
   width: number,
   height: number,
 ): string {
-  const stepIn = Math.floor(256 / GRAY_LEVELS);
-  const thermalGamma = 1.6;
-  const rgba = new Uint8Array(width * height * 4);
-
-  for (let i = 0; i < width * height; i++) {
-    const rawVal = pixels[i];
-    let levelIdx = Math.floor(rawVal / stepIn);
-    if (levelIdx < 0) levelIdx = 0;
-    else if (levelIdx >= GRAY_LEVELS) levelIdx = GRAY_LEVELS - 1;
-
-    const nibble = GRAY_LEVELS - 1 - levelIdx;
-    const linearGray = 255 - Math.floor((nibble * 255) / (GRAY_LEVELS - 1));
-    const grayOut = Math.floor(
-      255 * Math.pow(linearGray / 255.0, thermalGamma),
-    );
-
-    const idx = i * 4;
-    rgba[idx] = grayOut;
-    rgba[idx + 1] = grayOut;
-    rgba[idx + 2] = grayOut;
-    rgba[idx + 3] = 255;
-  }
-
-  const encoded = jpeg.encode({ data: rgba, width, height }, 85);
-  const base64 = uint8ArrayToBase64(encoded.data);
-  return `data:image/jpeg;base64,${base64}`;
+  return grayPixelsToBmpBase64(pixels, width, height);
 }
 
-export async function processImageUri(
+export async function generateHighResPrintData(
   uri: string,
   options: ImageOptions = {},
-): Promise<ProcessedImageData> {
+): Promise<{ nibbleData: Uint8Array; width: number; height: number }> {
   const cols = Math.max(1, Math.min(10, options.splitCols || 1));
   const rows = Math.max(1, Math.min(10, options.splitRows || 1));
   const targetWidth = 384 * cols;
+  const rotate = options.rotate || 0;
 
   const ImageManipulator = await import("expo-image-manipulator");
 
   const actions: Action[] = [];
-  if (options.rotate) {
-    actions.push({ rotate: options.rotate });
+  if (rotate) {
+    actions.push({ rotate });
   }
   actions.push({ resize: { width: targetWidth } });
 
@@ -374,7 +315,7 @@ export async function processImageUri(
   });
 
   if (!manip.base64) {
-    throw new Error("Failed to manipulate image.");
+    throw new Error("Failed to manipulate image for printing.");
   }
 
   const jpegBytes = base64ToUint8Array(manip.base64);
@@ -406,20 +347,130 @@ export async function processImageUri(
     dithered = ditherGrayPixels(preprocessed, width, height, method);
   }
 
-  let finalNibbles: Uint8Array;
-  let printWidth = width;
-  let printHeight = height;
+  if (cols > 1 || rows > 1) {
+    const strip = buildPrintStrip(dithered, width, height, cols, rows, 384);
+    const finalNibbles = grayToNibbles(
+      strip.stripPixels,
+      strip.stripWidth,
+      strip.stripHeight,
+    );
+    return {
+      nibbleData: finalNibbles,
+      width: strip.stripWidth,
+      height: strip.stripHeight,
+    };
+  }
+
+  const finalNibbles = grayToNibbles(dithered, width, height);
+  return {
+    nibbleData: finalNibbles,
+    width,
+    height,
+  };
+}
+
+export async function processImageUri(
+  uri: string,
+  options: ImageOptions = {},
+): Promise<ProcessedImageData> {
+  const cols = Math.max(1, Math.min(10, options.splitCols || 1));
+  const rows = Math.max(1, Math.min(10, options.splitRows || 1));
+  const rotate = options.rotate || 0;
+  const previewTargetWidth = 384;
+  const cacheKey = `${uri}:${rotate}:${previewTargetWidth}`;
+
+  let rawGray: Uint8Array;
+  let previewWidth: number;
+  let previewHeight: number;
+  let origWidth: number;
+  let origHeight: number;
+
+  if (lastDecodedCache && lastDecodedCache.key === cacheKey) {
+    rawGray = lastDecodedCache.rawGray;
+    previewWidth = lastDecodedCache.width;
+    previewHeight = lastDecodedCache.height;
+    origWidth = lastDecodedCache.origWidth;
+    origHeight = lastDecodedCache.origHeight;
+  } else {
+    const ImageManipulator = await import("expo-image-manipulator");
+
+    const actions: Action[] = [];
+    if (rotate) {
+      actions.push({ rotate });
+    }
+    actions.push({ resize: { width: previewTargetWidth } });
+
+    const manip = await ImageManipulator.manipulateAsync(uri, actions, {
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true,
+    });
+
+    if (!manip.base64) {
+      throw new Error("Failed to manipulate image.");
+    }
+
+    const jpegBytes = base64ToUint8Array(manip.base64);
+    const decoded = jpeg.decode(jpegBytes, { useTArray: true });
+    previewWidth = decoded.width;
+    previewHeight = decoded.height;
+    origWidth = decoded.width;
+    origHeight = decoded.height;
+
+    rawGray = resizeAndGrayscale(
+      decoded.data,
+      decoded.width,
+      decoded.height,
+      previewWidth,
+      previewHeight,
+    );
+
+    lastDecodedCache = {
+      key: cacheKey,
+      width: previewWidth,
+      height: previewHeight,
+      origWidth,
+      origHeight,
+      rawGray,
+    };
+  }
+
+  let dithered: Uint8Array;
+  if (options.disablePreprocessing) {
+    dithered = quantizeGrayPixels(rawGray);
+  } else {
+    const preprocessed = applyImagePreprocessing(
+      rawGray,
+      previewWidth,
+      previewHeight,
+      options,
+    );
+    const method: DitherMethod = options.disableDithering
+      ? "none"
+      : (options.ditherMethod ?? "floyd-steinberg");
+    dithered = ditherGrayPixels(
+      preprocessed,
+      previewWidth,
+      previewHeight,
+      method,
+    );
+  }
+
   let previewUri: string;
+  let finalNibbles: Uint8Array | undefined = undefined;
+  const printWidth = 384 * cols;
+  const printHeight = Math.round(previewHeight * cols);
 
   if (cols > 1 || rows > 1) {
-    previewUri = drawAnnotatedPreview(dithered, width, height, cols, rows);
-    const strip = buildPrintStrip(dithered, width, height, cols, rows, 384);
-    printWidth = strip.stripWidth;
-    printHeight = strip.stripHeight;
-    finalNibbles = grayToNibbles(strip.stripPixels, printWidth, printHeight);
+    previewUri = drawAnnotatedPreviewBmp(
+      dithered,
+      previewWidth,
+      previewHeight,
+      cols,
+      rows,
+    );
   } else {
-    previewUri = grayPixelsToJpegBase64(dithered, width, height);
-    finalNibbles = grayToNibbles(dithered, width, height);
+    previewUri = grayPixelsToBmpBase64(dithered, previewWidth, previewHeight);
+    finalNibbles = grayToNibbles(dithered, previewWidth, previewHeight);
   }
 
   return {
@@ -427,11 +478,13 @@ export async function processImageUri(
     nibbleData: finalNibbles,
     width: printWidth,
     height: printHeight,
-    previewWidth: width,
-    previewHeight: height,
-    origWidth: decoded.width,
-    origHeight: decoded.height,
+    previewWidth,
+    previewHeight,
+    origWidth,
+    origHeight,
     totalStrips: cols * rows,
+    uri,
+    options,
   };
 }
 
@@ -522,13 +575,31 @@ export class ImageService {
     return await processImageUri(uri, options);
   }
 
+  public clearCache(): void {
+    clearImageCache();
+  }
+
   public async print(
     processedData: ProcessedImageData | null,
     settings: PrintSettingsOptions = DEFAULT_IMAGE_SETTINGS,
   ): Promise<void> {
     if (!processedData) return;
 
-    await sendPrintJob(processedData.nibbleData, processedData.width, settings);
+    let nibbles = processedData.nibbleData;
+    let printWidth = processedData.width;
+
+    if (!nibbles && processedData.uri) {
+      const highRes = await generateHighResPrintData(
+        processedData.uri,
+        processedData.options || {},
+      );
+      nibbles = highRes.nibbleData;
+      printWidth = highRes.width;
+    }
+
+    if (nibbles) {
+      await sendPrintJob(nibbles, printWidth, settings);
+    }
   }
 }
 

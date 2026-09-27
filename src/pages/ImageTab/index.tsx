@@ -83,7 +83,7 @@ function ImageTabContent() {
       } finally {
         setIsProcessing(false);
       }
-    }, 250);
+    }, 100);
 
     return () => {
       if (processTimerRef.current) {

@@ -85,23 +85,24 @@ describe("Image Preprocessing & Algorithms", () => {
     dithered.fill(200);
 
     const preview = drawAnnotatedPreview(dithered, width, height, 2, 2);
-    expect(preview.startsWith("data:image/jpeg;base64,")).toBe(true);
+    expect(preview.startsWith("data:image/bmp;base64,")).toBe(true);
   });
 
-  it("should generate standard JPEG preview base64 URI", () => {
+  it("should generate standard preview base64 URI", () => {
     const width = 384;
     const height = 100;
     const pixels = new Uint8Array(width * height);
     pixels.fill(255);
 
     const uri = grayPixelsToJpegBase64(pixels, width, height);
-    expect(uri.startsWith("data:image/jpeg;base64,")).toBe(true);
+    expect(uri.startsWith("data:image/bmp;base64,")).toBe(true);
   });
 
-  it("should export imageService singleton instance and crop methods", () => {
+  it("should export imageService singleton instance, clearCache, and crop methods", () => {
     expect(imageService).toBeDefined();
     expect(typeof imageService.process).toBe("function");
     expect(typeof imageService.print).toBe("function");
+    expect(typeof imageService.clearCache).toBe("function");
     expect(typeof imageService.pickImageFromLibrary).toBe("function");
     expect(typeof imageService.pickImageFromCamera).toBe("function");
     expect(typeof imageService.cropImage).toBe("function");
