@@ -24,7 +24,7 @@ const QRCodeConfigContext = createContext<QRCodeConfigContextType | null>(null);
 
 export function QRCodeConfigProvider({ children }: { children: ReactNode }) {
   const [contentType, setContentType] = useState<"url" | "text">("url");
-  const [text, setText] = useState("https://github.com");
+  const [text, setText] = useState("");
   const [size, setSize] = useState(260);
   const [errorCorrection, setErrorCorrection] =
     useState<ErrorCorrectionLevel>("M");
@@ -32,7 +32,7 @@ export function QRCodeConfigProvider({ children }: { children: ReactNode }) {
 
   function resetConfig() {
     setContentType("url");
-    setText("https://github.com");
+    setText("");
     setSize(260);
     setErrorCorrection("M");
     setLogo(null);
