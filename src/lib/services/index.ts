@@ -4,5 +4,7 @@ export * from "./qrcodeService";
 export * from "./spineTagService";
 export * from "./imageService";
 export * from "./shareIntentService";
+export * from "./nfcLink";
+export * from "./nfcService";
 export * from "../storage/imageConfigStorage";
 export * from "../storage/tabHardwareSettingsStorage";

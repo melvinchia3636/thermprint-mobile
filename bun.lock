@@ -30,6 +30,7 @@
         "react-native": "0.86.3",
         "react-native-ble-plx": "^3.5.1",
         "react-native-css": "^3.0.7",
+        "react-native-nfc-manager": "^4.0.0",
         "react-native-paper": "^5.15.3",
         "react-native-reanimated": "^4.6.0",
         "react-native-safe-area-context": "^5.9.1",
@@ -911,6 +912,8 @@
     "react-native-css": ["react-native-css@3.0.7", "", { "dependencies": { "@types/debug": "^4.1.12", "babel-plugin-react-compiler": "^19.1.0-rc.2", "colorjs.io": "0.6.0-alpha.1", "comment-json": "^4.2.5", "debug": "^4.4.1" }, "peerDependencies": { "@expo/metro-config": ">=54", "lightningcss": ">=1.27.0", "react": ">=19", "react-native": ">=0.81" } }, "sha512-xsU9T5MleHI/DDmY72A7ZikbkDfDNkMrAEichOJW2bBUMxPzAJPrFk9ys4cXYk4gLFaR11y23EccOJ+JT6Iusw=="],
 
     "react-native-is-edge-to-edge": ["react-native-is-edge-to-edge@1.3.1", "", { "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-NIXU/iT5+ORyCc7p0z2nnlkouYKX425vuU1OEm6bMMtWWR9yvb+Xg5AZmImTKoF9abxCPqrKC3rOZsKzUYgYZA=="],
+
+    "react-native-nfc-manager": ["react-native-nfc-manager@4.0.0", "", { "peerDependencies": { "@expo/config-plugins": "*", "react": ">=18.2", "react-native": ">=0.76" }, "optionalPeers": ["@expo/config-plugins"] }, "sha512-l1vcxDQ/qeVbY432mLwJfPRtZfRQeHe8Al7sXumFX6DQWynm97WGY2c6queMpwSYXx4xP5Eqe5DBR7ErLL8QQg=="],
 
     "react-native-paper": ["react-native-paper@5.15.3", "", { "dependencies": { "@callstack/react-theme-provider": "^3.0.9", "color": "^3.1.2", "use-latest-callback": "^0.2.3" }, "peerDependencies": { "react": "*", "react-native": "*", "react-native-safe-area-context": "*" } }, "sha512-GEyNTmWElIZgnYw09AjjCNupRYzCmP79uAAyGSyCEUZz7KBz1wtJcC0wVUkozR1Rn3PK/td/9LlR6+F1hzmYvA=="],
 

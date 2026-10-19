@@ -28,6 +28,7 @@ import { QRCodeTab } from "./src/pages/QRCodeTab";
 import { CalendarTab } from "./src/pages/CalendarTab";
 import { SpineTagTab } from "./src/pages/SpineTagTab";
 import { YouTubeTab } from "./src/pages/YouTubeTab";
+import { NfcTagTab } from "./src/pages/NfcTagTab";
 import { DeviceSelectorModal } from "./src/components/AppHeader/components/DeviceSelectorModal";
 import { PrintProgressProvider } from "./src/contexts";
 import { shareIntentService } from "./src/lib/services";
@@ -50,6 +51,7 @@ const MODE_TITLES: Record<string, { title: string; icon: MaterialIconName }> = {
   calendar: { title: "Calendar", icon: "calendar-month" },
   spine_tag: { title: "Journal Spine Tag", icon: "label" },
   youtube: { title: "YouTube Video", icon: "smart-display" },
+  nfc_tag: { title: "NFC Tag", icon: "nfc" },
 };
 
 const navigationTheme = {
@@ -177,6 +179,7 @@ export default function App() {
               <Stack.Screen name="calendar" component={CalendarTab} />
               <Stack.Screen name="spine_tag" component={SpineTagTab} />
               <Stack.Screen name="youtube" component={YouTubeTab} />
+              <Stack.Screen name="nfc_tag" component={NfcTagTab} />
             </Stack.Navigator>
 
             <DeviceSelectorModal

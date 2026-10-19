@@ -3,7 +3,6 @@ import { useTheme } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { Text } from "@/components/Text";
 import { ModeCard } from "./components/ModeCard";
 import type { FeatureTab, RootStackParamList } from "@/lib/core";
 
@@ -45,6 +44,12 @@ const MODES: {
     description: "Thumbnails with QR link",
     icon: "smart-display",
   },
+  {
+    id: "nfc_tag",
+    title: "NFC Tag",
+    description: "Write links to NFC tags",
+    icon: "nfc",
+  },
 ];
 
 export function HomeScreen({
@@ -69,18 +74,6 @@ export function HomeScreen({
 
   return (
     <ScrollView contentContainerClassName="p-4">
-      <View className="mb-4">
-        <Text variant="titleLarge" weight="bold">
-          Select Print Mode
-        </Text>
-        <Text
-          variant="bodyMedium"
-          className="text-zinc-400 mt-0.5"
-        >
-          Choose a template to preview and print
-        </Text>
-      </View>
-
       <View className="gap-3">
         {rows.map((row, rowIndex) => (
           <View

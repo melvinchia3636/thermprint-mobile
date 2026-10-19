@@ -45,7 +45,13 @@
           "bluetoothAlwaysPermission": "Allow ThermPrint to connect to BLE thermal printers."
         }
       ],
-      "./plugins/withShareIntent"
+      "./plugins/withShareIntent",
+      [
+        "react-native-nfc-manager",
+        {
+          "nfcPermission": "Allow ThermPrint to write links to NFC tags."
+        }
+      ]
     ]
   }
 }

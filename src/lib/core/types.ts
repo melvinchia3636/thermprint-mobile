@@ -5,7 +5,8 @@ export type FeatureTab =
   | "qrcode"
   | "calendar"
   | "spine_tag"
-  | "youtube";
+  | "youtube"
+  | "nfc_tag";
 
 export type RootStackParamList = {
   Home: undefined;
@@ -14,4 +15,5 @@ export type RootStackParamList = {
   calendar: undefined;
   spine_tag: undefined;
   youtube: undefined;
+  nfc_tag: undefined;
 };
