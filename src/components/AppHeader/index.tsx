@@ -8,7 +8,6 @@ import { ConnectionBadge } from "./components/ConnectionBadge";
 export function AppHeader({
   status,
   title = "ThermPrint",
-  subtitle = "Thermal BLE Printer",
   icon = "receipt-long",
   canGoBack = false,
   onGoBack,
@@ -16,7 +15,6 @@ export function AppHeader({
 }: {
   status: PrinterStatus;
   title?: string;
-  subtitle?: string;
   icon?: React.ComponentProps<typeof MaterialIcons>["name"];
   canGoBack?: boolean;
   onGoBack?: () => void;
@@ -29,23 +27,29 @@ export function AppHeader({
       {canGoBack && <Appbar.BackAction onPress={onGoBack} />}
       <Appbar.Content
         title={
-          <View className="flex-row items-center gap-2">
-            <MaterialIcons name={icon} size={22} color={theme.colors.primary} />
-            <Text variant="titleLarge" weight="bold">
+          <View className="flex-1 flex-row items-center gap-2">
+            <MaterialIcons
+              name={icon}
+              size={canGoBack ? 18 : 22}
+              color={theme.colors.primary}
+            />
+            <Text
+              variant={canGoBack ? "titleMedium" : "titleLarge"}
+              weight="bold"
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              className="flex-shrink"
+            >
               {title}
             </Text>
           </View>
         }
-        subtitle={subtitle}
-        subtitleStyle={{ fontFamily: "DMSans_400Regular" }}
       />
       <ConnectionBadge
         status={status}
         onPress={onPressBluetooth}
-        style={{ marginRight: 16 }}
+        style={{ marginLeft: 12, marginRight: 16 }}
       />
     </Appbar.Header>
   );
 }
-
-

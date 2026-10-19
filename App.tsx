@@ -43,13 +43,13 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
 
-const MODE_TITLES: Record<string, { title: string; subtitle: string; icon: MaterialIconName }> = {
-  Home: { title: "ThermPrint", subtitle: "Thermal BLE Printer", icon: "receipt-long" },
-  image: { title: "Image Printing", subtitle: "Thermal BLE Print", icon: "image" },
-  qrcode: { title: "QR Code", subtitle: "Thermal BLE Print", icon: "qr-code" },
-  calendar: { title: "Calendar", subtitle: "Thermal BLE Print", icon: "calendar-month" },
-  spine_tag: { title: "Journal Spine Tag", subtitle: "Thermal BLE Print", icon: "label" },
-  youtube: { title: "YouTube Video", subtitle: "Thermal BLE Print", icon: "smart-display" },
+const MODE_TITLES: Record<string, { title: string; icon: MaterialIconName }> = {
+  Home: { title: "ThermPrint", icon: "receipt-long" },
+  image: { title: "Image Printing", icon: "image" },
+  qrcode: { title: "QR Code", icon: "qr-code" },
+  calendar: { title: "Calendar", icon: "calendar-month" },
+  spine_tag: { title: "Journal Spine Tag", icon: "label" },
+  youtube: { title: "YouTube Video", icon: "smart-display" },
 };
 
 const navigationTheme = {
@@ -75,7 +75,6 @@ export default function App() {
   });
 
   const [status, setStatus] = useState<PrinterStatus>("offline");
-  const [connectedDeviceName, setConnectedDeviceName] = useState<string | null>(null);
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [pendingShareUri, setPendingShareUri] = useState<string | null>(null);
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
@@ -103,7 +102,6 @@ export default function App() {
       }
       prevStatus = newStatus;
       setStatus(newStatus);
-      setConnectedDeviceName(deviceName);
     });
     return () => {
       unsub();
@@ -157,19 +155,13 @@ export default function App() {
                 header: ({ navigation, back, route }: NativeStackHeaderProps) => {
                   const info = MODE_TITLES[route.name] || {
                     title: "ThermPrint",
-                    subtitle: "Thermal BLE Printer",
                     icon: "receipt-long",
                   };
-                  const subtitle =
-                    status === "online" && connectedDeviceName
-                      ? `Connected: ${connectedDeviceName}`
-                      : info.subtitle;
 
                   return (
                     <AppHeader
                       status={status}
                       title={info.title}
-                      subtitle={subtitle}
                       icon={info.icon}
                       canGoBack={Boolean(back)}
                       onGoBack={navigation.goBack}
