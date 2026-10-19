@@ -12,11 +12,13 @@ type QRCodeConfigContextType = {
   size: number;
   errorCorrection: ErrorCorrectionLevel;
   logo: EmbeddedLogoOptions | null;
+  hasNfc: boolean;
   setContentType: (type: "url" | "text") => void;
   setText: (text: string) => void;
   setSize: (size: number) => void;
   setErrorCorrection: (ec: ErrorCorrectionLevel) => void;
   setLogo: (logo: EmbeddedLogoOptions | null) => void;
+  setHasNfc: (hasNfc: boolean) => void;
   resetConfig: () => void;
 };
 
@@ -29,6 +31,7 @@ export function QRCodeConfigProvider({ children }: { children: ReactNode }) {
   const [errorCorrection, setErrorCorrection] =
     useState<ErrorCorrectionLevel>("M");
   const [logo, setLogo] = useState<EmbeddedLogoOptions | null>(null);
+  const [hasNfc, setHasNfc] = useState(false);
 
   function resetConfig() {
     setContentType("url");
@@ -36,6 +39,7 @@ export function QRCodeConfigProvider({ children }: { children: ReactNode }) {
     setSize(260);
     setErrorCorrection("M");
     setLogo(null);
+    setHasNfc(false);
   }
 
   return (
@@ -46,11 +50,13 @@ export function QRCodeConfigProvider({ children }: { children: ReactNode }) {
         size,
         errorCorrection,
         logo,
+        hasNfc,
         setContentType,
         setText,
         setSize,
         setErrorCorrection,
         setLogo,
+        setHasNfc,
         resetConfig,
       }}
     >

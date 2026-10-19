@@ -10,7 +10,7 @@ import { usePrintAction } from "@/hooks";
 import { PreviewCard } from "@/components/PreviewCard";
 
 function QRCodeTabContent() {
-  const { text, size, errorCorrection, logo } = useQRCodeConfig();
+  const { text, size, errorCorrection, logo, hasNfc } = useQRCodeConfig();
   const {
     settings: printerSettings,
     setSettings: setPrinterSettings,
@@ -25,11 +25,12 @@ function QRCodeTabContent() {
         size,
         errorCorrection,
         logo: logo || undefined,
+        nfcLogo: hasNfc,
       });
     } catch {
       return null;
     }
-  }, [text, size, errorCorrection, logo]);
+  }, [text, size, errorCorrection, logo, hasNfc]);
 
   const { executePrint } = usePrintAction();
 
@@ -43,9 +44,11 @@ function QRCodeTabContent() {
       />
       <PreviewCard
         noticeText={
-          logo
-            ? "Center logo embedded. High error correction ensures QR code remains scannable."
-            : "Make sure the code is scannable before printing."
+          hasNfc
+            ? "NFC logo embedded. High error correction ensures the QR code remains scannable."
+            : logo
+              ? "Center logo embedded. High error correction ensures QR code remains scannable."
+              : "Make sure the code is scannable before printing."
         }
         data={qrData}
       />
@@ -59,6 +62,7 @@ function QRCodeTabContent() {
                 size,
                 errorCorrection,
                 logo: logo || undefined,
+                nfcLogo: hasNfc,
               },
               printerSettings,
             ),

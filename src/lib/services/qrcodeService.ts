@@ -10,6 +10,13 @@ import {
   sendPrintJob,
   type PrintSettingsOptions,
 } from "../core/printerService";
+import {
+  NFC_ICON_BITMAP_BASE64,
+  NFC_ICON_SOURCE_SIZE,
+  NFC_ICON_SVG_PATH,
+  NFC_ICON_VIEWBOX_MIN,
+  NFC_ICON_VIEWBOX_SIZE,
+} from "./nfcIcon";
 
 export const DEFAULT_QRCODE_SETTINGS: PrintSettingsOptions = {
   quality: 49,
@@ -35,6 +42,7 @@ export interface QRCodeGenerateOptions {
   size?: number;
   errorCorrection?: ErrorCorrectionLevel;
   logo?: EmbeddedLogoOptions;
+  nfcLogo?: boolean;
 }
 
 export interface QRCodePrintData {
@@ -45,10 +53,81 @@ export interface QRCodePrintData {
   actualQrSize: number;
   text: string;
   hasLogo: boolean;
+  hasNfcLogo: boolean;
 }
 
 export function decodeBase64ToUint8Array(base64: string): Uint8Array {
   return base64ToUint8Array(base64);
+}
+
+const NFC_LOGO_SIZE_RATIO = 0.26;
+
+function stampNfcIconPixels(
+  pixels: Uint8Array,
+  width: number,
+  height: number,
+  logoX: number,
+  logoY: number,
+  logoSize: number,
+): void {
+  const bitmap = base64ToUint8Array(NFC_ICON_BITMAP_BASE64);
+  const sourceScale = NFC_ICON_SOURCE_SIZE / logoSize;
+
+  for (let y = 0; y < logoSize; y++) {
+    const sourceYStart = Math.floor(y * sourceScale);
+    const sourceYEnd = Math.min(
+      NFC_ICON_SOURCE_SIZE,
+      Math.max(sourceYStart + 1, Math.ceil((y + 1) * sourceScale)),
+    );
+
+    for (let x = 0; x < logoSize; x++) {
+      const sourceXStart = Math.floor(x * sourceScale);
+      const sourceXEnd = Math.min(
+        NFC_ICON_SOURCE_SIZE,
+        Math.max(sourceXStart + 1, Math.ceil((x + 1) * sourceScale)),
+      );
+
+      let blackPixels = 0;
+      let totalPixels = 0;
+
+      for (let sourceY = sourceYStart; sourceY < sourceYEnd; sourceY++) {
+        for (let sourceX = sourceXStart; sourceX < sourceXEnd; sourceX++) {
+          const index = sourceY * NFC_ICON_SOURCE_SIZE + sourceX;
+          const bit = (bitmap[index >> 3] >> (7 - (index & 7))) & 1;
+          blackPixels += bit;
+          totalPixels++;
+        }
+      }
+
+      const targetX = logoX + x;
+      const targetY = logoY + y;
+      if (
+        targetX >= 0 &&
+        targetX < width &&
+        targetY >= 0 &&
+        targetY < height
+      ) {
+        pixels[targetY * width + targetX] =
+          totalPixels > 0 && blackPixels * 2 >= totalPixels ? 0 : 255;
+      }
+    }
+  }
+}
+
+function buildNfcLogoSvg(
+  centerX: number,
+  centerY: number,
+  size: number,
+): string {
+  const scale = size / NFC_ICON_VIEWBOX_SIZE;
+  const offsetX = centerX - size / 2 - NFC_ICON_VIEWBOX_MIN * scale;
+  const offsetY = centerY - size / 2 - NFC_ICON_VIEWBOX_MIN * scale;
+
+  return `<g id="nfc-logo">
+  <g transform="translate(${offsetX.toFixed(2)} ${offsetY.toFixed(2)}) scale(${scale.toFixed(4)})">
+    <path d="${NFC_ICON_SVG_PATH}" fill="#000000" />
+  </g>
+</g>`;
 }
 
 export function generateQRCodeData(
@@ -59,8 +138,11 @@ export function generateQRCodeData(
     throw new Error("QR code text cannot be empty");
   }
 
-  // When a logo is embedded, default to 'H' error correction (up to 30% recovery) if not specified
-  const errorCorrection = options.errorCorrection || (options.logo ? "H" : "M");
+  // When center artwork is embedded, default to 'H' error correction (up to 30% recovery) if not specified
+  const hasNfcLogo = Boolean(options.nfcLogo);
+  const hasCenterArtwork = Boolean(options.logo) || hasNfcLogo;
+  const errorCorrection =
+    options.errorCorrection || (hasCenterArtwork ? "H" : "M");
   const targetSize = Math.max(50, Math.min(384, options.size || 280));
   const printerWidth = 384;
 
@@ -105,16 +187,15 @@ export function generateQRCodeData(
     }
   }
 
-  // 2. Handle embedded logo if present
+  // 2. Handle embedded center artwork (custom logo or NFC badge)
   let logoSvg = "";
-  if (options.logo) {
-    const sizeRatio = Math.max(
-      0.15,
-      Math.min(0.3, options.logo.sizeRatio || 0.22),
-    );
+  if (hasCenterArtwork) {
+    const sizeRatio = hasNfcLogo
+      ? NFC_LOGO_SIZE_RATIO
+      : Math.max(0.15, Math.min(0.3, options.logo?.sizeRatio || 0.22));
     const logoSize = Math.round(actualQrSize * sizeRatio);
-    const bgPadding = options.logo.padding ?? 4;
-    const rx = options.logo.borderRadius ?? 4;
+    const bgPadding = hasNfcLogo ? 4 : options.logo?.padding ?? 4;
+    const rx = hasNfcLogo ? 6 : options.logo?.borderRadius ?? 4;
 
     const logoX = offsetX + Math.floor((actualQrSize - logoSize) / 2);
     const logoY = Math.floor((actualQrSize - logoSize) / 2);
@@ -132,44 +213,63 @@ export function generateQRCodeData(
       }
     }
 
-    // If base64 image data is provided, decode and stamp dithered logo into the pixel buffer
-    if (options.logo.base64) {
-      try {
-        const bytes = decodeBase64ToUint8Array(options.logo.base64);
-        const decoded = jpeg.decode(bytes, { useTArray: true });
-        const logoGray = resizeAndGrayscale(
-          decoded.data,
-          decoded.width,
-          decoded.height,
-          logoSize,
-          logoSize,
-        );
-        const logoDithered = ditherGrayPixels(logoGray, logoSize, logoSize);
+    if (hasNfcLogo) {
+      const centerX = logoX + logoSize / 2;
+      const centerY = logoY + logoSize / 2;
 
-        for (let ly = 0; ly < logoSize; ly++) {
-          for (let lx = 0; lx < logoSize; lx++) {
-            const py = logoY + ly;
-            const px = logoX + lx;
-            if (px >= 0 && px < printerWidth && py >= 0 && py < height) {
-              pixels[py * printerWidth + px] = logoDithered[ly * logoSize + lx];
+      stampNfcIconPixels(
+        pixels,
+        printerWidth,
+        height,
+        logoX,
+        logoY,
+        logoSize,
+      );
+
+      logoSvg = `
+  <rect x="${bgX}" y="${bgY}" width="${bgSize}" height="${bgSize}" rx="${rx}" fill="#FFFFFF" />
+  ${buildNfcLogoSvg(centerX, centerY, logoSize)}
+`;
+    } else if (options.logo) {
+      // If base64 image data is provided, decode and stamp dithered logo into the pixel buffer
+      if (options.logo.base64) {
+        try {
+          const bytes = decodeBase64ToUint8Array(options.logo.base64);
+          const decoded = jpeg.decode(bytes, { useTArray: true });
+          const logoGray = resizeAndGrayscale(
+            decoded.data,
+            decoded.width,
+            decoded.height,
+            logoSize,
+            logoSize,
+          );
+          const logoDithered = ditherGrayPixels(logoGray, logoSize, logoSize);
+
+          for (let ly = 0; ly < logoSize; ly++) {
+            for (let lx = 0; lx < logoSize; lx++) {
+              const py = logoY + ly;
+              const px = logoX + lx;
+              if (px >= 0 && px < printerWidth && py >= 0 && py < height) {
+                pixels[py * printerWidth + px] = logoDithered[ly * logoSize + lx];
+              }
             }
           }
+        } catch {
+          // If decoding fails, the clear white mask in center remains intact
         }
-      } catch {
-        // If decoding fails, the clear white mask in center remains intact
       }
-    }
 
-    const imageHref = options.logo.base64
-      ? options.logo.base64.startsWith("data:")
-        ? options.logo.base64
-        : `data:image/jpeg;base64,${options.logo.base64}`
-      : options.logo.uri;
+      const imageHref = options.logo.base64
+        ? options.logo.base64.startsWith("data:")
+          ? options.logo.base64
+          : `data:image/jpeg;base64,${options.logo.base64}`
+        : options.logo.uri;
 
-    logoSvg = `
+      logoSvg = `
   <rect x="${bgX}" y="${bgY}" width="${bgSize}" height="${bgSize}" rx="${rx}" fill="#FFFFFF" />
   <image href="${imageHref}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}" preserveAspectRatio="xMidYMid slice" />
 `;
+    }
   }
 
   const svgXml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${printerWidth} ${height}" width="${printerWidth}" height="${height}">
@@ -187,7 +287,8 @@ export function generateQRCodeData(
     height,
     actualQrSize,
     text,
-    hasLogo: Boolean(options.logo),
+    hasLogo: Boolean(options.logo) || hasNfcLogo,
+    hasNfcLogo,
   };
 }
 

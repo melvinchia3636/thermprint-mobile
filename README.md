@@ -16,7 +16,7 @@ I created a web version of the thermal printer companion app [here](https://gith
 - **🏷️ Journal Spine Tags**: Generates clean vertical volume numbers, date spans, and high-density Data Matrix 2D barcodes for physical notebook and binder archiving.
 - **📅 Monthly Calendars**: Generates readable mini-calendar planners formatted for standard 384px thermal paper width.
 - **📺 YouTube Video Cards**: Generates video cards with titles, grayscaled thumbnails, and scannable QR code links.
-- **🔗 QR Code Generator**: Generates crisp, sharp QR codes with adjustable error correction levels and optional centered logo stamping.
+- **🔗 QR Code Generator**: Generates crisp, sharp QR codes with adjustable error correction levels, an optional centered logo, and an NFC badge for tags.
 - **📡 NFC Tag Writer**: Writes web links to NFC tags as standard NDEF URI records, with support checks, tag capacity validation, and an optional permanent write-lock.
 - **⚙️ Hardware Fine-Tuning**: Per-mode hardware settings for thermal energy, print speed, chunk row limits, and stream delays.
 

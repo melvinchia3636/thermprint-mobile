@@ -5,6 +5,7 @@ import {
   SegmentedButtons,
   Button,
   IconButton,
+  Switch,
   useTheme,
 } from "react-native-paper";
 import * as ImagePicker from "expo-image-picker";
@@ -45,6 +46,8 @@ export function QRConfig() {
     setErrorCorrection,
     logo,
     setLogo,
+    hasNfc,
+    setHasNfc,
   } = useQRCodeConfig();
 
   const [isProcessingImage, setIsProcessingImage] = useState(false);
@@ -126,7 +129,30 @@ export function QRConfig() {
         }}
       />
 
-      <View className="mb-4">
+      <View className="flex-row items-center justify-between bg-zinc-800 rounded-xl p-3 mb-4">
+        <View className="flex-1 mr-3">
+          <Text variant="bodyMedium" weight="medium">
+            Has NFC
+          </Text>
+          <Text variant="bodySmall" className="text-zinc-400 mt-0.5">
+            {hasNfc
+              ? "The NFC logo replaces the custom center image."
+              : "Show an NFC logo in the center of the QR code."}
+          </Text>
+        </View>
+        <Switch
+          value={hasNfc}
+          onValueChange={(value) => {
+            setHasNfc(value);
+            if (value && (errorCorrection === "L" || errorCorrection === "M")) {
+              setErrorCorrection("H");
+            }
+          }}
+        />
+      </View>
+
+      {!hasNfc ? (
+        <View className="mb-4">
         <Text
           variant="bodySmall"
           className="text-zinc-400 mb-2"
@@ -183,6 +209,7 @@ export function QRConfig() {
           </Button>
         )}
       </View>
+      ) : null}
 
       <View className="mb-4">
         <Text

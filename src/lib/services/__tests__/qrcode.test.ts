@@ -57,6 +57,36 @@ describe("QR Code Generation Service", () => {
     expect(dataWithLogo.nibbleData.length).toBeGreaterThan(0);
   });
 
+  it("should embed an NFC logo in the center when requested", () => {
+    const data = generateQRCodeData({
+      text: "https://example.com",
+      size: 280,
+      errorCorrection: "H",
+      nfcLogo: true,
+    });
+
+    expect(data.hasNfcLogo).toBe(true);
+    expect(data.hasLogo).toBe(true);
+    expect(data.svgXml).toContain('id="nfc-logo"');
+    expect(data.svgXml).not.toContain("<image");
+    expect(data.nibbleData.length).toBeGreaterThan(0);
+  });
+
+  it("should prefer the NFC logo over a custom center logo", () => {
+    const data = generateQRCodeData({
+      text: "https://example.com",
+      size: 280,
+      nfcLogo: true,
+      logo: {
+        uri: "file:///mock/logo.png",
+      },
+    });
+
+    expect(data.svgXml).toContain('id="nfc-logo"');
+    expect(data.svgXml).not.toContain("<image");
+    expect(data.nibbleData.length).toBeGreaterThan(0);
+  });
+
   it("should provide qrcodeService singleton instance with service methods", () => {
     const { qrcodeService } = require("../qrcodeService");
     expect(qrcodeService.printerWidth).toBe(384);
